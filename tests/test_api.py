@@ -11,9 +11,16 @@ def client():
         yield client
 
 
-def test_get(client):
+def test_get_hello(client):
     response: Response = client.get("/")
 
     assert response.status_code == 200
 
     assert response.get_data(as_text=True) == "<p>Hello, World!</p>"
+
+
+def test_get_db(client):
+    response: Response = client.get("/db")
+
+    assert response.status_code == 200
+    assert response.get_json() == [1, 2, 3]
