@@ -28,3 +28,13 @@ def add_book():
     new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
     books.append(new_book)
     return jsonify(new_book), 201
+
+
+@app.route("/books/<int:book_id>", methods=["DELETE"])
+def delete_book(book_id):
+    book_to_delete = next((book for book in books if book["id"] == book_id), None)
+    print(f"Deleting book with id: {book_id}, {book_to_delete}")
+    if book_to_delete is None:
+        return jsonify({"error": "Book not found"}), 404
+    books.remove(book_to_delete)
+    return jsonify({"message": "Book deleted"}), 200
