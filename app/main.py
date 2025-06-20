@@ -2,7 +2,10 @@ from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-db = [1, 2, 3]
+books = [
+    {"id": 1, "title": "Harry Potter", "rating": 5},
+    {"id": 2, "title": "The Tempest", "rating": 2},
+]
 
 
 @app.route("/")
@@ -10,6 +13,6 @@ def hello_world():
     return "<p>Hello, World!</p>"
 
 
-@app.route("/db", methods=["GET"])
-def get_items():
-    return jsonify(db), 200
+@app.route("/books", methods=["GET"])
+def get_db_items():
+    return jsonify(books), 200

@@ -19,8 +19,9 @@ def test_get_hello(client):
     assert response.get_data(as_text=True) == "<p>Hello, World!</p>"
 
 
-def test_get_db(client):
-    response: Response = client.get("/db")
-
+def test_get_books(client):
+    response: Response = client.get("/books")
     assert response.status_code == 200
-    assert response.get_json() == [1, 2, 3]
+    data = response.get_json()
+    assert len(data) == 2
+    assert data[0]["title"] == "Harry Potter"
