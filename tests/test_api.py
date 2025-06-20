@@ -25,3 +25,15 @@ def test_get_books(client):
     data = response.get_json()
     assert len(data) == 2
     assert data[0]["title"] == "Harry Potter"
+
+
+def test_add_book(client):
+    new_book = {"title": "CLRS", "rating": 0.3}
+    response = client.post("/books", json=new_book)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["title"] == "CLRS"
+    assert data["rating"] == 0.3
+    get_response = client.get("/books")
+    books_list = get_response.get_json()
+    assert any(book["title"] == "Harry Potter" for book in books_list)
