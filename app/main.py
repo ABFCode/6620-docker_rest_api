@@ -38,3 +38,21 @@ def delete_book(book_id):
         return jsonify({"error": "Book not found"}), 404
     books.remove(book_to_delete)
     return jsonify({"message": "Book deleted"}), 200
+
+
+@app.route("/books/<int:book_id>", methods=["PUT"])
+def update_book(book_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data"}), 400
+
+    book_to_update = next((book for book in books if book["id"] == book_id), None)
+    print(f"Updating book with id: {book_id}, {book_to_update}")
+    if book_to_update is None:
+        return jsonify({"error": "Book not found"}), 404
+
+    if "title" in data:
+        book_to_update["title"] = data["title"]
+    if "rating" in data:
+        book_to_update["rating"] = data["rating"]
+    return jsonify(book_to_update), 200

@@ -1,12 +1,19 @@
 import pytest
 from flask import Response
 
-from app.main import app
+from app.main import app, books
 
 
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
+    books.clear()
+    books.extend(
+        [
+            {"id": 1, "title": "Harry Potter", "rating": 5},
+            {"id": 2, "title": "The Tempest", "rating": 2},
+        ]
+    )
     with app.test_client() as client:
         yield client
 
@@ -56,4 +63,25 @@ def test_delete_book(client):
     delete_response = client.delete("/books/111")
     assert delete_response.status_code == 404
     data = delete_response.get_json()
+    assert data["error"] == "Book not found"
+
+
+def test_update_book(client):
+    update_data = {"title": "Harry Potter 1", "rating": 5.1}
+    response: Response = client.put("/books/1", json=update_data)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["title"] == "Harry Potter 1"
+    assert data["rating"] == 5.1
+
+    get_response: Response = client.get("/books")
+    books_list = get_response.get_json()
+    updated_book = next((book for book in books_list if book["id"] == 1), None)
+    assert updated_book is not None
+    assert updated_book["title"] == "Harry Potter 1"
+    assert updated_book["rating"] == 5.1
+
+    bad_response: Response = client.put("/books/111", json={"title": "123"})
+    assert bad_response.status_code == 404
+    data = bad_response.get_json()
     assert data["error"] == "Book not found"
