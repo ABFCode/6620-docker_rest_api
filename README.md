@@ -17,12 +17,12 @@ To build the Docker image and run the API server, follow these steps:
 
 2.  **Make the script executable** 
     ```sh
-    chmod +x run_api.sh
+    chmod +x run_app.sh
     ```
 
 3.  **Run the script:**
     ```sh
-    ./run_api.sh
+    ./run_app.sh
     ```
 
 The API will now be running at `http://localhost:5000`. 
