@@ -1,3 +1,4 @@
+import localstack_client.session as boto3
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
@@ -56,3 +57,8 @@ def update_book(book_id):
     if "rating" in data:
         book_to_update["rating"] = data["rating"]
     return jsonify(book_to_update), 200
+
+
+client = boto3.client("s3")
+response = client.list_buckets()
+print(response)
