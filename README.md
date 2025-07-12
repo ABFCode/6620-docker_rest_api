@@ -46,3 +46,5 @@ The API will now be running at `http://localhost:5000`.
 ---
 
 https://stackoverflow.com/questions/40336918/how-to-write-a-file-or-data-to-an-s3-object-using-boto3
+https://dev.to/aws-builders/how-to-list-contents-of-s3-bucket-using-boto3-python-47mm
+https://stackoverflow.com/questions/40995251/reading-a-json-file-from-s3-using-python-boto3

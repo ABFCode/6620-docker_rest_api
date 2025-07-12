@@ -14,11 +14,22 @@ localstack_endpoint = "http://localhost:4566"
 bucket_name = "my-books"
 
 s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
-books = data["books"]
-for book in books:
-    print(book)
+init_books = data["books"]
+for book in init_books:
     s3_object = s3.Object(bucket_name, f"{book['title']}.json")
     s3_object.put(Body=json.dumps(book))
+
+print(f"Init books: {init_books}")
+
+bucket = s3.Bucket(bucket_name)
+
+books = []
+for book_object in bucket.objects.all():
+    book_body = book_object.get()["Body"].read()
+    book = json.loads(book_body)
+    books.append(book)
+
+print(books)
 
 
 @app.route("/")
@@ -39,7 +50,7 @@ def add_book():
 
     new_id = max(book["id"] for book in books) + 1
     new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
-    # books.append(new_book)
+    books.append(new_book)
     s3_object = s3.Object(bucket_name, f"{new_book['title']}.json")
     s3_object.put(Body=json.dumps(new_book))
     return jsonify(new_book), 201
@@ -52,6 +63,9 @@ def delete_book(book_id):
     if book_to_delete is None:
         return jsonify({"error": "Book not found"}), 404
     books.remove(book_to_delete)
+
+    s3_object = s3.Object(bucket_name, f"{book_to_delete['title']}.json")
+    s3_object.delete()
     return jsonify({"message": "Book deleted"}), 200
 
 
