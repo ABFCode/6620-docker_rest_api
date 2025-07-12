@@ -11,12 +11,13 @@ with open("books.json", "r") as file:
 
 
 localstack_endpoint = "http://localhost:4566"
+bucket_name = "my-books"
 
 s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
 books = data["books"]
 for book in books:
     print(book)
-    s3_object = s3.Object("my-books", f"{book['title']}.json")
+    s3_object = s3.Object(bucket_name, f"{book['title']}.json")
     s3_object.put(Body=json.dumps(book))
 
 
@@ -38,7 +39,9 @@ def add_book():
 
     new_id = max(book["id"] for book in books) + 1
     new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
-    books.append(new_book)
+    # books.append(new_book)
+    s3_object = s3.Object(bucket_name, f"{new_book['title']}.json")
+    s3_object.put(Body=json.dumps(new_book))
     return jsonify(new_book), 201
 
 
