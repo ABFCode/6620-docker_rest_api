@@ -1,7 +1,6 @@
-
 ## Prerequisites
 
--   [Docker Desktop Official Website](https://www.docker.com/products/docker-desktop)
+- [Docker Desktop Official Website](https://www.docker.com/products/docker-desktop)
 
 ---
 
@@ -10,12 +9,14 @@
 To build the Docker image and run the API server, follow these steps:
 
 1.  **Clone the repository:**
+
     ```sh
     git clone https://github.com/ABFCode/6620-docker_rest_api
     cd 6620-docker_rest_api
     ```
 
-2.  **Make the script executable** 
+2.  **Make the script executable**
+
     ```sh
     chmod +x run_app.sh
     ```
@@ -25,13 +26,14 @@ To build the Docker image and run the API server, follow these steps:
     ./run_app.sh
     ```
 
-The API will now be running at `http://localhost:5000`. 
+The API will now be running at `http://localhost:5000`.
 
 ---
 
 ## Run the Tests
 
 1.  **Make the test script executable**
+
     ```sh
     chmod +x run_tests.sh
     ```
@@ -42,3 +44,5 @@ The API will now be running at `http://localhost:5000`.
     ```
 
 ---
+
+https://stackoverflow.com/questions/40336918/how-to-write-a-file-or-data-to-an-s3-object-using-boto3
