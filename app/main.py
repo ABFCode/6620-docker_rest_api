@@ -1,12 +1,23 @@
-import localstack_client.session as boto3
+import json
+
+import boto3
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-books = [
-    {"id": 1, "title": "Harry Potter", "rating": 5},
-    {"id": 2, "title": "The Tempest", "rating": 2},
-]
+
+with open("books.json", "r") as file:
+    data = json.load(file)
+
+
+localstack_endpoint = "http://localhost:4566"
+
+s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
+books = data["books"]
+for book in books:
+    print(book)
+    s3_object = s3.Object("my-books", f"{book['title']}.json")
+    s3_object.put(Body=json.dumps(book))
 
 
 @app.route("/")
@@ -57,8 +68,3 @@ def update_book(book_id):
     if "rating" in data:
         book_to_update["rating"] = data["rating"]
     return jsonify(book_to_update), 200
-
-
-client = boto3.client("s3")
-response = client.list_buckets()
-print(response)
