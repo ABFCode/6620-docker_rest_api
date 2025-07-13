@@ -29,8 +29,6 @@ for book_object in bucket.objects.all():
     book = json.loads(book_body)
     books.append(book)
 
-print(books)
-
 
 @app.route("/")
 def hello_world():
@@ -39,6 +37,11 @@ def hello_world():
 
 @app.route("/books", methods=["GET"])
 def get_books():
+    books = []
+    for book_object in bucket.objects.all():
+        book_body = book_object.get()["Body"].read()
+        book = json.loads(book_body)
+        books.append(book)
     return jsonify(books), 200
 
 
@@ -80,8 +83,20 @@ def update_book(book_id):
     if book_to_update is None:
         return jsonify({"error": "Book not found"}), 404
 
+    old_title = book_to_update["title"]
+    old_s3_key = f"{old_title}.json"
+
     if "title" in data:
         book_to_update["title"] = data["title"]
     if "rating" in data:
         book_to_update["rating"] = data["rating"]
+
+    new_s3_key = f"{book_to_update['title']}.json"
+
+    if new_s3_key != old_s3_key:
+        print("Deleting old object as title changed")
+        s3.Object(bucket_name, old_s3_key).delete()
+
+    s3.Object(bucket_name, new_s3_key).put(Body=json.dumps(book_to_update))
+
     return jsonify(book_to_update), 200
