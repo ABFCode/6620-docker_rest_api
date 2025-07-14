@@ -11,7 +11,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker-compose -f $COMPOSE_FILE up -d localstack
+docker compose -f $COMPOSE_FILE up -d localstack
 
 S3_READY=false
 for i in {1..24}; do
