@@ -62,4 +62,4 @@ Prompts - Starting Prompts:
 2. I think trying to run terraform in side our dockercomposetest is difficulk we should move into a more run_tests.sh focused method where we : Start LocalStack - This provides a local AWS environment that mimics S3
 Wait for LocalStack to be ready - It takes time to boot up
 Run Terraform - This creates the S3 bucket in LocalStack
-Run the tests - pytest runs against the Flask app, which connects to LocalStack's S3 Is that better/possible?
+Run the tests - pytest runs against the Flask app, which connects to LocalStack's S3. Is that better/possible?

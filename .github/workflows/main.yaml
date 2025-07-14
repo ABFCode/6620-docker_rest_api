@@ -11,8 +11,11 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Build test docker image
-        run: docker build -t my-book-app-test -f Dockerfile.test .
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Make test script executable
+        run: chmod +x ./run_tests.sh
 
       - name: Run tests
-        run: docker run --rm my-book-app-test
+        run: ./run_tests.sh
