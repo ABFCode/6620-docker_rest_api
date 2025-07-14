@@ -1,4 +1,5 @@
 import json
+import os
 
 import boto3
 from flask import Flask, jsonify, request
@@ -10,7 +11,7 @@ with open("books.json", "r") as file:
     data = json.load(file)
 
 
-localstack_endpoint = "http://localhost:4566"
+localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 bucket_name = "my-books"
 
 s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
