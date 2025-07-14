@@ -6,7 +6,7 @@ COMPOSE_FILE="docker-compose.test.yml"
 cleanup() {
     echo "--- Tearing down test environment ---"
     exit_code=$?
-    docker-compose -f $COMPOSE_FILE down --remove-orphans
+    docker compose -f $COMPOSE_FILE down --remove-orphans
     exit $exit_code
 }
 trap cleanup EXIT
