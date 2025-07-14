@@ -63,3 +63,6 @@ Prompts - Starting Prompts:
 Wait for LocalStack to be ready - It takes time to boot up
 Run Terraform - This creates the S3 bucket in LocalStack
 Run the tests - pytest runs against the Flask app, which connects to LocalStack's S3. Is that better/possible?
+
+3. Issue with workflows (main.yaml) 
+./run_tests.sh: line 9: docker-compose: command not found

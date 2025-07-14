@@ -33,9 +33,9 @@ export AWS_DEFAULT_REGION=us-east-1
 terraform init -input=false
 terraform apply -auto-approve -input=false -no-color
 
-if ! docker-compose -f $COMPOSE_FILE exec localstack awslocal s3 ls | grep -q "my-books"; then
+if ! docker compose -f $COMPOSE_FILE exec localstack awslocal s3 ls | grep -q "my-books"; then
     echo "FATAL: Terraform did not create the 'my-books' bucket." >&2
     exit 1
 fi
 
-docker-compose -f $COMPOSE_FILE up --build --exit-code-from tests tests
+docker compose -f $COMPOSE_FILE up --build --exit-code-from tests tests
