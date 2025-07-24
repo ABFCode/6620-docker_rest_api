@@ -56,7 +56,7 @@ https://github.com/localstack-samples/localstack-terraform-samples
 AI/LLM USAGE:
 CLAUDE/CHATGPT 
 
-Prompts - Starting Prompts: 
+Prompts - Starting Prompts (Made with project wide context typically): 
 1. What is wrong with my current use of these two classes (run_tests.sh)/(docker-compose.test.yml) Having issues with credentials and exiting early
 
 2. I think trying to run terraform in side our dockercomposetest is difficulk we should move into a more run_tests.sh focused method where we : Start LocalStack - This provides a local AWS environment that mimics S3
@@ -69,5 +69,9 @@ Run the tests - pytest runs against the Flask app, which connects to LocalStack'
 
 4. Refactor this to use the 'id' instead of 'title' for objects. 
 
+
+5. Most basic setups for dynamoDB using terraform and localstack, explain all the options
+
+6. TypeError: Object of type Decimal is not JSON serializable - DynamoDB Localstack Terraform
 
  

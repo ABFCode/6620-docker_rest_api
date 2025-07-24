@@ -1,52 +1,61 @@
 import json
 import os
+from decimal import Decimal
 
 import boto3
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-
 localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 bucket_name = "my-books"
+table_name = "books"
 
 s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
-bucket = s3.Bucket(bucket_name)
+dynamodb = boto3.resource("dynamodb", endpoint_url=localstack_endpoint)
+table = dynamodb.Table(table_name)
+
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return int(o)
+        return super(DecimalEncoder, self).default(o)
+
+app.json_encoder = DecimalEncoder
 
 
 try:
-    if not any(bucket.objects.limit(1)):
-        print(f"Bucket '{bucket_name}' is empty. Populating from books.json")
+    if table.item_count == 0:
+        print(f"Table '{table_name}' is empty. Populating from books.json")
         with open("books.json", "r") as file:
             data = json.load(file)
             for book in data["books"]:
-                s3_object = s3.Object(bucket_name, f"book_{book['id']}.json")
-                s3_object.put(Body=json.dumps(book))
+                item_for_dynamo = json.loads(
+                    json.dumps(book), parse_float=Decimal, parse_int=Decimal
+                )
+
+                s3.Object(bucket_name, f"book_{book['id']}.json").put(
+                    Body=json.dumps(book)
+                )
+                table.put_item(Item=item_for_dynamo)
 except Exception as e:
-    print(f"Could not check bucket on startup: {e}")
+    print(f"Could not check/populate resources on startup: {e}")
 
 
-def _get_all_books_from_s3():
-    books = []
+def _get_all_books_from_dynamodb():
     try:
-        for book_object in bucket.objects.all():
-            book_body = book_object.get()["Body"].read()
-            book = json.loads(book_body)
-            books.append(book)
+        response = table.scan()
+        return response.get("Items", [])
     except Exception as e:
-        print(f"Error fetching books from s3: {e}")
+        print(f"Error fetching books from DynamoDB: {e}")
         return []
-    return books
-
-
-@app.route("/")
-def hello_world():
-    return "<p>Hello, World!</p>"
 
 
 @app.route("/books", methods=["GET"])
 def get_books():
-    books = _get_all_books_from_s3()
+    books = _get_all_books_from_dynamodb()
     return jsonify(books), 200
 
 
@@ -56,48 +65,50 @@ def add_book():
     if not data or "title" not in data or "rating" not in data:
         return jsonify({"error": "Missing title or rating"}, 400)
 
-    books = _get_all_books_from_s3()
-
+    books = _get_all_books_from_dynamodb()
     new_id = max((book["id"] for book in books), default=0) + 1
-    new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
     
-    s3_object = s3.Object(bucket_name, f"book_{new_book['id']}.json")
-    s3_object.put(Body=json.dumps(new_book))
+    new_book = {
+        "id": new_id,
+        "title": data["title"],
+        "rating": Decimal(str(data["rating"])),
+    }
+
+    s3.Object(bucket_name, f"book_{new_book['id']}.json").put(
+        Body=json.dumps(new_book, cls=DecimalEncoder)
+    )
+    table.put_item(Item=new_book)
+
     return jsonify(new_book), 201
 
 
 @app.route("/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id):
-    books = _get_all_books_from_s3()
-    book_to_delete = next((book for book in books if book["id"] == book_id), None)
-    print(f"Deleting book with id: {book_id}, {book_to_delete}")
-    if book_to_delete is None:
-        return jsonify({"error": "Book not found"}), 404
-
-    s3_object = s3.Object(bucket_name, f"book_{book_to_delete['id']}.json")
-    s3_object.delete()
+    s3.Object(bucket_name, f"book_{book_id}.json").delete()
+    table.delete_item(Key={"id": book_id})
     return jsonify({"message": "Book deleted"}), 200
 
 
 @app.route("/books/<int:book_id>", methods=["PUT"])
 def update_book(book_id):
-    books = _get_all_books_from_s3()
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data"}), 400
 
-    book_to_update = next((book for book in books if book["id"] == book_id), None)
-    print(f"Updating book with id: {book_id}, {book_to_update}")
-    if book_to_update is None:
+    response = table.get_item(Key={"id": book_id})
+    if "Item" not in response:
         return jsonify({"error": "Book not found"}), 404
 
+    book_to_update = response["Item"]
+    
     if "title" in data:
-        book_to_update["title"] = data["title"]
+        book_to_update["title"] = data.get("title")
     if "rating" in data:
-        book_to_update["rating"] = data["rating"]
+        book_to_update["rating"] = Decimal(str(data["rating"]))
 
-    s3.Object(bucket_name, f"book_{book_to_update['id']}.json").put(
-        Body=json.dumps(book_to_update)
+    s3.Object(bucket_name, f"book_{book_id}.json").put(
+        Body=json.dumps(book_to_update, cls=DecimalEncoder)
     )
+    table.put_item(Item=book_to_update)
 
     return jsonify(book_to_update), 200
