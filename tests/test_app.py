@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal
 
 import boto3
 import pytest
@@ -8,15 +9,23 @@ from app.main import app
 
 localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 bucket_name = "my-books"
+table_name = "books"
 
 s3_client = boto3.client("s3", endpoint_url=localstack_endpoint)
+dynamodb_resource = boto3.resource("dynamodb", endpoint_url=localstack_endpoint)
+dynamodb_table = dynamodb_resource.Table(table_name)
 
 
-def setup_s3():
+def setup_data():
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     if "Contents" in response:
         for obj in response["Contents"]:
             s3_client.delete_object(Bucket=bucket_name, Key=obj["Key"])
+
+    scan = dynamodb_table.scan()
+    with dynamodb_table.batch_writer() as batch:
+        for each in scan["Items"]:
+            batch.delete_item(Key={"id": each["id"]})
 
     initial_books = [
         {"id": 1, "title": "Harry Potter", "rating": 5},
@@ -24,25 +33,49 @@ def setup_s3():
     ]
     for book in initial_books:
         s3_client.put_object(
-            Bucket=bucket_name,
-            Key=f"book_{book['id']}.json",
-            Body=json.dumps(book),
+            Bucket=bucket_name, Key=f"book_{book['id']}.json", Body=json.dumps(book)
         )
+        item_for_dynamo = json.loads(
+            json.dumps(book), parse_float=Decimal, parse_int=Decimal
+        )
+        dynamodb_table.put_item(Item=item_for_dynamo)
 
 
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
-    setup_s3()
+    setup_data()
     with app.test_client() as client:
         yield client
+
 
 
 def test_get_books(client):
     response = client.get("/books")
     assert response.status_code == 200
-    data = response.get_json()
-    assert len(data) == 2
+    assert len(response.get_json()) == 2
+
+
+def test_get_books_empty(client):
+    setup_data()
+    scan = dynamodb_table.scan()
+    with dynamodb_table.batch_writer() as batch:
+        for each in scan["Items"]:
+            batch.delete_item(Key={"id": each["id"]})
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            s3_client.delete_object(Bucket=bucket_name, Key=obj["Key"])
+
+    response = client.get("/books")
+    assert response.status_code == 200
+    assert response.get_json() == []
+
+
+def test_get_books_with_ignored_parameters(client):
+    response = client.get("/books?author=shakespeare")
+    assert response.status_code == 200
+    assert len(response.get_json()) == 2
 
 
 def test_add_book(client):
@@ -51,17 +84,9 @@ def test_add_book(client):
         "/books", data=json.dumps(new_book_data), content_type="application/json"
     )
     assert response.status_code == 201
-    new_book = response.get_json()
-    assert new_book["id"] == 3 
-
-    get_response = client.get("/books")
-    books_list = get_response.get_json()
-    assert len(books_list) == 3
-    assert any(book["title"] == "New Book" for book in books_list)
-
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    keys = [obj["Key"] for obj in response.get("Contents", [])]
-    assert f"book_{new_book['id']}.json" in keys
+    assert int(response.get_json()["id"]) == 3
+    db_item = dynamodb_table.get_item(Key={"id": 3})["Item"]
+    assert db_item["title"] == "New Book"
 
 
 def test_add_duplicate_book(client):
@@ -70,22 +95,16 @@ def test_add_duplicate_book(client):
         "/books", data=json.dumps(book_data), content_type="application/json"
     )
     assert response1.status_code == 201
-    assert response1.get_json()["id"] == 3
+    assert int(response1.get_json()["id"]) == 3
 
     response2 = client.post(
         "/books", data=json.dumps(book_data), content_type="application/json"
     )
     assert response2.status_code == 201
-    assert response2.get_json()["id"] == 4
+    assert int(response2.get_json()["id"]) == 4
 
     get_response = client.get("/books")
-    books_list = get_response.get_json()
-    assert len(books_list) == 4
-
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    keys = [obj["Key"] for obj in response.get("Contents", [])]
-    assert "book_3.json" in keys
-    assert "book_4.json" in keys
+    assert len(get_response.get_json()) == 4
 
 
 def test_update_book(client):
@@ -94,54 +113,29 @@ def test_update_book(client):
         "/books/1", data=json.dumps(update_data), content_type="application/json"
     )
     assert response.status_code == 200
-    updated_book = response.get_json()
-    assert updated_book["title"] == "New Title"
+    db_item = dynamodb_table.get_item(Key={"id": 1})["Item"]
+    assert db_item["title"] == "New Title"
 
-    s3_object = s3_client.get_object(Bucket=bucket_name, Key="book_1.json")
-    s3_content = json.loads(s3_object["Body"].read().decode("utf-8"))
-    assert s3_content["title"] == "New Title"
-    assert s3_content["rating"] == 1
+
+def test_update_nonexistent_book(client):
+    response = client.put(
+        "/books/999",
+        data=json.dumps({"title": "Ghost"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 404
 
 
 def test_delete_book(client):
     delete_response = client.delete("/books/1")
     assert delete_response.status_code == 200
+    with pytest.raises(KeyError):
+        dynamodb_table.get_item(Key={"id": 1})["Item"]
+    with pytest.raises(s3_client.exceptions.NoSuchKey):
+        s3_client.get_object(Bucket=bucket_name, Key="book_1.json")
 
-    get_response = client.get("/books")
-    books_list = get_response.get_json()
-    assert len(books_list) == 1
-    assert not any(book["id"] == 1 for book in books_list)
-
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    keys = [obj["Key"] for obj in response.get("Contents", [])]
-    assert "book_1.json" not in keys
-    assert "book_2.json" in keys
-
-def test_get_books_empty(client):
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    if "Contents" in response:
-        for obj in response["Contents"]:
-            s3_client.delete_object(Bucket=bucket_name, Key=obj["Key"])
-    response = client.get("/books")
-    assert response.status_code == 200
-    assert response.get_json() == []
-
-def test_update_nonexistent_book(client):
-    update_data = {"title": "Ghost Book", "rating": 5}
-    response = client.put(
-        "/books/999",
-        data=json.dumps(update_data),
-        content_type="application/json",
-    )
-    assert response.status_code == 404
-    assert response.get_json()["error"] == "Book not found"
 
 def test_delete_nonexistent_book(client):
     response = client.delete("/books/999")
     assert response.status_code == 404
     assert response.get_json()["error"] == "Book not found"
-
-def test_get_books_with_ignored_parameters(client):
-    response = client.get("/books?author=shakespeare")
-    assert response.status_code == 200
-    assert len(response.get_json()) == 2

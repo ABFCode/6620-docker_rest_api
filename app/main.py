@@ -16,7 +16,6 @@ dynamodb = boto3.resource("dynamodb", endpoint_url=localstack_endpoint)
 table = dynamodb.Table(table_name)
 
 
-
 class DecimalEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, Decimal):
@@ -35,7 +34,6 @@ try:
                 item_for_dynamo = json.loads(
                     json.dumps(book), parse_float=Decimal, parse_int=Decimal
                 )
-
                 s3.Object(bucket_name, f"book_{book['id']}.json").put(
                     Body=json.dumps(book)
                 )
@@ -84,6 +82,10 @@ def add_book():
 
 @app.route("/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id):
+    response = table.get_item(Key={"id": book_id})
+    if "Item" not in response:
+        return jsonify({"error": "Book not found"}), 404
+
     s3.Object(bucket_name, f"book_{book_id}.json").delete()
     table.delete_item(Key={"id": book_id})
     return jsonify({"message": "Book deleted"}), 200
