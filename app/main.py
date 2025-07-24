@@ -7,10 +7,6 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 
-with open("books.json", "r") as file:
-    data = json.load(file)
-
-
 localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 bucket_name = "my-books"
 
@@ -24,7 +20,7 @@ try:
         with open("books.json", "r") as file:
             data = json.load(file)
             for book in data["books"]:
-                s3_object = s3.Object(bucket_name, f"{book['title']}.json")
+                s3_object = s3.Object(bucket_name, f"book_{book['id']}.json")
                 s3_object.put(Body=json.dumps(book))
 except Exception as e:
     print(f"Could not check bucket on startup: {e}")
@@ -40,7 +36,6 @@ def _get_all_books_from_s3():
     except Exception as e:
         print(f"Error fetching books from s3: {e}")
         return []
-
     return books
 
 
@@ -60,13 +55,13 @@ def add_book():
     data = request.get_json()
     if not data or "title" not in data or "rating" not in data:
         return jsonify({"error": "Missing title or rating"}, 400)
-    
+
     books = _get_all_books_from_s3()
 
     new_id = max((book["id"] for book in books), default=0) + 1
     new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
-    books.append(new_book)
-    s3_object = s3.Object(bucket_name, f"{new_book['title']}.json")
+    
+    s3_object = s3.Object(bucket_name, f"book_{new_book['id']}.json")
     s3_object.put(Body=json.dumps(new_book))
     return jsonify(new_book), 201
 
@@ -78,9 +73,8 @@ def delete_book(book_id):
     print(f"Deleting book with id: {book_id}, {book_to_delete}")
     if book_to_delete is None:
         return jsonify({"error": "Book not found"}), 404
-    books.remove(book_to_delete)
 
-    s3_object = s3.Object(bucket_name, f"{book_to_delete['title']}.json")
+    s3_object = s3.Object(bucket_name, f"book_{book_to_delete['id']}.json")
     s3_object.delete()
     return jsonify({"message": "Book deleted"}), 200
 
@@ -97,20 +91,13 @@ def update_book(book_id):
     if book_to_update is None:
         return jsonify({"error": "Book not found"}), 404
 
-    old_title = book_to_update["title"]
-    old_s3_key = f"{old_title}.json"
-
     if "title" in data:
         book_to_update["title"] = data["title"]
     if "rating" in data:
         book_to_update["rating"] = data["rating"]
 
-    new_s3_key = f"{book_to_update['title']}.json"
-
-    if new_s3_key != old_s3_key:
-        print("Deleting old object as title changed")
-        s3.Object(bucket_name, old_s3_key).delete()
-
-    s3.Object(bucket_name, new_s3_key).put(Body=json.dumps(book_to_update))
+    s3.Object(bucket_name, f"book_{book_to_update['id']}.json").put(
+        Body=json.dumps(book_to_update)
+    )
 
     return jsonify(book_to_update), 200

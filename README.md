@@ -66,3 +66,8 @@ Run the tests - pytest runs against the Flask app, which connects to LocalStack'
 
 3. Issue with workflows (main.yaml) 
 ./run_tests.sh: line 9: docker-compose: command not found
+
+4. Refactor this to use the 'id' instead of 'title' for objects. 
+
+
+ 
