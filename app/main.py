@@ -15,20 +15,33 @@ localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 bucket_name = "my-books"
 
 s3 = boto3.resource("s3", endpoint_url=localstack_endpoint)
-init_books = data["books"]
-for book in init_books:
-    s3_object = s3.Object(bucket_name, f"{book['title']}.json")
-    s3_object.put(Body=json.dumps(book))
-
-print(f"Init books: {init_books}")
-
 bucket = s3.Bucket(bucket_name)
 
-books = []
-for book_object in bucket.objects.all():
-    book_body = book_object.get()["Body"].read()
-    book = json.loads(book_body)
-    books.append(book)
+
+try:
+    if not any(bucket.objects.limit(1)):
+        print(f"Bucket '{bucket_name}' is empty. Populating from books.json")
+        with open("books.json", "r") as file:
+            data = json.load(file)
+            for book in data["books"]:
+                s3_object = s3.Object(bucket_name, f"{book['title']}.json")
+                s3_object.put(Body=json.dumps(book))
+except Exception as e:
+    print(f"Could not check bucket on startup: {e}")
+
+
+def _get_all_books_from_s3():
+    books = []
+    try:
+        for book_object in bucket.objects.all():
+            book_body = book_object.get()["Body"].read()
+            book = json.loads(book_body)
+            books.append(book)
+    except Exception as e:
+        print(f"Error fetching books from s3: {e}")
+        return []
+
+    return books
 
 
 @app.route("/")
@@ -38,11 +51,7 @@ def hello_world():
 
 @app.route("/books", methods=["GET"])
 def get_books():
-    books = []
-    for book_object in bucket.objects.all():
-        book_body = book_object.get()["Body"].read()
-        book = json.loads(book_body)
-        books.append(book)
+    books = _get_all_books_from_s3()
     return jsonify(books), 200
 
 
@@ -51,8 +60,10 @@ def add_book():
     data = request.get_json()
     if not data or "title" not in data or "rating" not in data:
         return jsonify({"error": "Missing title or rating"}, 400)
+    
+    books = _get_all_books_from_s3()
 
-    new_id = max(book["id"] for book in books) + 1
+    new_id = max((book["id"] for book in books), default=0) + 1
     new_book = {"id": new_id, "title": data["title"], "rating": data["rating"]}
     books.append(new_book)
     s3_object = s3.Object(bucket_name, f"{new_book['title']}.json")
@@ -62,6 +73,7 @@ def add_book():
 
 @app.route("/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id):
+    books = _get_all_books_from_s3()
     book_to_delete = next((book for book in books if book["id"] == book_id), None)
     print(f"Deleting book with id: {book_id}, {book_to_delete}")
     if book_to_delete is None:
@@ -75,6 +87,7 @@ def delete_book(book_id):
 
 @app.route("/books/<int:book_id>", methods=["PUT"])
 def update_book(book_id):
+    books = _get_all_books_from_s3()
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data"}), 400
